@@ -9,7 +9,7 @@ class fp_pos_config():
     print_step = 100
     test_step = 2
     #filename = datetime.now().__str__()[:-7]
-    filename = 'phase2'
+    filename = 'phasenew'
     workdir = './history/{}'.format(filename)
     log = workdir + '/Log_{}.log'.format(filename)
     samples = workdir + '/samples'
@@ -19,4 +19,4 @@ class fp_pos_config():
     batch_size = 32
     epochs = 50
     save_step = 5
-    learning_rate = 1e-3
+    learning_rate = 5e-4
