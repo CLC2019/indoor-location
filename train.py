@@ -1,8 +1,8 @@
 import math
 import os
 #os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-from model import CNNmodel, DNNmodel, fp_posmodel
-from utils import logger_configuration, plt_cdf
+from model import CNNmodel, DNNmodel, fp_posmodel, fp_pos_phasemodel
+from utils import logger_configuration, plt_cdf, out2pos, WIPout2pos
 import torch
 import torch.nn as nn
 from config import fp_pos_config as config
@@ -57,6 +57,33 @@ def positiontest(model, test_loader, criterion, logger=None):
     test_loss = 0
     pretruesum = 0
     prealllabel = 0
+    sum = 0
+    meter_error = []
+    pos = []
+    with torch.no_grad():
+        for I, _data in enumerate(test_loader):
+            TOA, labeltag, labelpos, phase = _data
+            output = model(TOA)  #
+            #loss = criterion(output, labeltag)
+            meter_error, pos = out2pos(output, labelpos, pos, meter_error)
+    plt_cdf(meter_error)
+    meter_error = torch.tensor(meter_error)
+
+    print(meter_error)
+    mean_meter_error = torch.mean(meter_error)
+    logger.info('Test set: avg_meter_error: {:.4f}\n'.format(mean_meter_error))
+    return meter_error
+
+def positiontestphase(model, test_loader, criterion, logger=None):
+    if logger is None:
+        logger = logger_configuration(config, save_log=False)
+    print('\nevaluating…')
+    model.eval()
+
+    test_loss = 0
+    pretruesum = 0
+    prealllabel = 0
+    sum = 0
     meter_error = []
     pos = []
     with torch.no_grad():
@@ -64,14 +91,35 @@ def positiontest(model, test_loader, criterion, logger=None):
             TOA, labeltag, labelpos, phase = _data
             output = model(phase)  #
             #loss = criterion(output, labeltag)
-            prelabel = torch.argmax(output, dim=1)
-            for i in range(len(prelabel)):
-                referL = labelpos[i, :]
-                posx = (prelabel[i] % 23 + 1) * 5
-                posy = (prelabel[i] // 23 + 1) * 5
-                pos.append([posx, posy])
-                preLerror = [posx - referL[0],  posy - referL[1]]
-                meter_error.append(math.sqrt(preLerror[0]*preLerror[0] + preLerror[1]*preLerror[1]))
+            meter_error, pos = out2pos(output, labelpos, pos, meter_error)
+    plt_cdf(meter_error)
+    meter_error = torch.tensor(meter_error)
+
+    print(meter_error)
+    mean_meter_error = torch.mean(meter_error)
+    logger.info('Test set: avg_meter_error: {:.4f}\n'.format(mean_meter_error))
+    return meter_error
+
+def WIPtest(model1, model2,test_loader, logger=None):
+    if logger is None:
+        logger = logger_configuration(config, save_log=False)
+    print('\nevaluating…')
+    model1.eval()
+    model2.eval()
+
+    test_loss = 0
+    pretruesum = 0
+    prealllabel = 0
+    sum = 0
+    meter_error = []
+    pos = []
+    with torch.no_grad():
+        for I, _data in enumerate(test_loader):
+            TOA, labeltag, labelpos, phase = _data
+            output1 = model1(TOA)
+            output2 = model2(phase)  #
+            #loss = criterion(output, labeltag)
+            meter_error, pos = WIPout2pos(output1, output2, labelpos, pos, meter_error)
     plt_cdf(meter_error)
     meter_error = torch.tensor(meter_error)
 
@@ -106,13 +154,23 @@ def test(model, test_loader, criterion, logger=None):
 
 if __name__ == "__main__":
     train_loader, test_loader, postest_loader = get_loader(config)
-    model = fp_posmodel()
+    model = fp_pos_phasemodel()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     criterion = nn.CrossEntropyLoss()
-    scheduler = None
-    #model_path = './history/phase/models/Ep35.pth'
-    #pre_dict = torch.load(model_path)
-    #model.load_state_dict(pre_dict, strict=False)
-    train(model, train_loader, test_loader, postest_loader, config, criterion, optimizer, scheduler)
-    test(model, test_loader, criterion, logger=None)
-    #positiontest(model, postest_loader, criterion, logger=None)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=config.learning_rate,
+                                                    steps_per_epoch=int(len(train_loader)),
+                                                    epochs=config.epochs,
+                                                    anneal_strategy='linear')
+    model_path = './history/phasenew/models/Ep50.pth'
+    pre_dict = torch.load(model_path)
+    model.load_state_dict(pre_dict, strict=False)
+    #train(model, train_loader, test_loader, postest_loader, config, criterion, optimizer, scheduler)
+    #test(model, test_loader, criterion, logger=None)
+
+
+    model2 = fp_posmodel()
+    model_path_toa = './history/TOA/models/Ep50.pth'
+    pretoa = torch.load(model_path_toa)
+    model2.load_state_dict(pretoa, strict=False)
+
+    WIPtest(model2, model, postest_loader)
