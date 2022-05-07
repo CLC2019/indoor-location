@@ -67,7 +67,7 @@ class rescnn(nn.Module):
 class fp_posmodel(nn.Module):
     def __init__(self, n_cnnlayers=12):
         super(fp_posmodel, self).__init__()
-        self.cnn = nn.Conv1d(3, 32, 3, padding=1)
+        self.cnn = nn.Conv1d(1, 32, 3, padding=1)
         self.bn1 = nn.BatchNorm1d(32)
         self.rescnn_layers = nn.Sequential(*[
             rescnn(32, 32, kernel=3, stride=1)
@@ -81,7 +81,40 @@ class fp_posmodel(nn.Module):
         self.linear3 = nn.Linear(512, 207)
 
     def forward(self, x):
-        #x = x.unsqueeze(1)
+        x = x.unsqueeze(1)
+        x = self.cnn(x)
+        x = self.bn1(x)
+        x = self.rescnn_layers(x)
+        sizes = x.size()
+        x = x.reshape(sizes[0], -1)
+        x = self.linear1(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        x = self.linear2(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+        x = self.linear3(x)
+        x = F.softmax(x, dim=1)
+        return x
+
+class fp_pos_phasemodel(nn.Module):
+    def __init__(self, n_cnnlayers=12):
+        super(fp_pos_phasemodel, self).__init__()
+        self.cnn = nn.Conv1d(1, 32, 3, padding=1)
+        self.bn1 = nn.BatchNorm1d(32)
+        self.rescnn_layers = nn.Sequential(*[
+            rescnn(32, 32, kernel=3, stride=1)
+            for _ in range(n_cnnlayers)
+        ])
+        self.linear1 = nn.Linear(32 * 36, 1024)
+        self.bn2 = nn.BatchNorm1d(1024)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(1024, 512)
+        self.bn3 = nn.BatchNorm1d(512)
+        self.linear3 = nn.Linear(512, 207)
+
+    def forward(self, x):
+        x = x.unsqueeze(1)
         x = self.cnn(x)
         x = self.bn1(x)
         x = self.rescnn_layers(x)
