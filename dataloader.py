@@ -117,6 +117,7 @@ class fp_pos_data(Dataset):
         self.labeltag_output = torch.tensor(self.labeltag_output).long()
         self.labels_pos_output = torch.tensor(self.labels_pos_output)
         self.phased_output = torch.tensor(self.phased_output)
+        self.phased_output = self.phased_output.reshape(-1, 36)
 
     def __len__(self):
         return len(self.TOA_output)
